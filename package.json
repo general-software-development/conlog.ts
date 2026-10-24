@@ -1,0 +1,28 @@
+{
+  "name": "conlog.ts",
+  "version": "1.0.0",
+  "type": "module",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^7"
+  },
+  "scripts": {
+    "build": "cd src && bun build ./* --minify --outdir ../dist/conlog --metafile --metafile-md --no-bundle"
+  },
+  "dependencies": {
+    "console-log-colors": "^0.5.0"
+  },
+  "main": "./dist/conlog/index.js",
+  "module": "./dist/conlog/index.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/conlog/index.mjs",
+      "require": "./dist/conlog/index.js"
+    }
+  },
+  "files": [
+    "dist/conlog"
+  ]
+}
