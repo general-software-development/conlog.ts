@@ -3,6 +3,17 @@ import type { LogLevelType } from "./enums"
 import { color, yellow, red, green, cyan, cyanBright, dim, bgRedBright, bgRed } from 'console-log-colors';
 import { LTAB, TAB } from "./utils";
 
+import { writeFile } from "node:fs/promises";
+const isBun = typeof process !== "undefined" && process.versions?.bun;
+
+async function write(destination: string, data: string) {
+    if (isBun) {
+        return await Bun.write(destination, data);
+    } else {
+        return await writeFile(destination, data);
+    }
+}
+
 type PredefaultLog = (...message: string[]) => Promise<void>;
 type P<T> = Promise<T>;
 
@@ -19,7 +30,8 @@ export interface LoggerABC {
 
 export class ConsoleLogger implements LoggerABC {
     private console: Console;
-    private colors: Record<string, (msg: string) => string>
+    protected colors: Record<string, (msg: string) => string>
+    public logLevel: LogLevelType;
 
     constructor() {
         this.console = globalThis.console;
@@ -32,6 +44,32 @@ export class ConsoleLogger implements LoggerABC {
             [LogLevel.WARNING[1]]: yellow,
             [LogLevel.ERROR[1]]: red,
             [LogLevel.CRITICAL[1]]: bgRedBright
+        }
+
+        this.logLevel = LogLevel.DEBUG;
+    }
+
+    async _write(level: LogLevelType, str: string) {
+        if (level[0] < this.logLevel[0]) {
+            return;
+        }
+
+        switch (level) {
+            case LogLevel.DEV:
+            case LogLevel.DEBUG:
+                this.console.debug(str);
+                break;
+            case LogLevel.INFO:
+            case LogLevel.SUCCESS:
+                this.console.info(str);
+                break;
+            case LogLevel.WARNING:
+                this.console.warn(str);
+                break;
+            case LogLevel.ERROR:
+            case LogLevel.CRITICAL:
+                this.console.error(str);
+                break;
         }
     }
 
@@ -56,23 +94,7 @@ export class ConsoleLogger implements LoggerABC {
             )
         }${LTAB}${color(message.join(' '))}`;
 
-        switch (level) {
-            case LogLevel.DEV:
-            case LogLevel.DEBUG:
-                this.console.debug(formatted);
-                break;
-            case LogLevel.INFO:
-            case LogLevel.SUCCESS:
-                this.console.info(formatted);
-                break;
-            case LogLevel.WARNING:
-                this.console.warn(formatted);
-                break;
-            case LogLevel.ERROR:
-            case LogLevel.CRITICAL:
-                this.console.error(formatted);
-                break;
-        }
+        this._write(level, formatted);
     }
 
     async dev(...msg: string[]): P<void> {
@@ -101,5 +123,62 @@ export class ConsoleLogger implements LoggerABC {
 
     async critical(...msg: string[]): P<void> {
         await this.log(LogLevel.CRITICAL, ...msg);
+    }
+}
+
+export class FileLogger extends ConsoleLogger implements LoggerABC {
+    public filename: string;
+
+    constructor(filename: string) {
+        super();
+
+        this.filename = filename;
+    }
+
+    override async _write(level: LogLevelType, str: string) {
+        if (level[0] < this.logLevel[0])
+            return;
+
+        await write(this.filename, str);
+    }
+
+    override async log(level: LogLevelType = LogLevel.INFO, ...message: string[]): Promise<void> {
+        const now = new Date();
+
+        let hex_id = "0x" + Math.floor(now.getTime() / 1000).toString(32);
+        hex_id += level[0].toString(32);
+    
+        const formatted =
+        `${TAB}${level[1].padEnd(8)}${LTAB}${
+            `${
+            now.getHours().toString().padStart(2, "0")
+            }:${
+            now.getMinutes().toString().padStart(2, "0")
+            }:${
+            now.getSeconds().toString().padStart(2, "0")
+            }.${now.getMilliseconds().toString().padEnd(3, "0")}`
+        }${LTAB}${message.join(' ')}`;
+
+        this._write(level, formatted);
+    }
+}
+
+export class concat extends ConsoleLogger implements LoggerABC {
+    protected listeners: LoggerABC[];
+
+    constructor(...loggers: LoggerABC[]) {
+        super();
+
+        this.listeners = loggers;
+    }
+    
+    override async log(level: LogLevelType = LogLevel.INFO, ...message: string[]): P<void> {
+        const promises = [];
+
+        for (const listener of this.listeners) {
+            promises.push(listener.log(level, ...message));
+        }
+
+        await Promise.all(promises);
     }
 }
