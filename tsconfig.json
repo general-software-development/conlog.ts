@@ -1,6 +1,9 @@
 {
   "compilerOptions": {
     // Environment setup & latest features
+    "outDir": "dist/conlog",
+    "rootDir": "src/",
+
     "lib": ["ESNext"],
     "target": "ESNext",
     "module": "Preserve",
@@ -25,6 +28,11 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
-  }
+    "noPropertyAccessFromIndexSignature": false,
+
+    "declaration": true,
+    "emitDeclarationOnly": true,
+  },
+
+  "include": ["src/**/*"]
 }
