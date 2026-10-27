@@ -11,6 +11,7 @@ async function write(destination: string, data: string) {
 
 type PredefaultLog = (...message: string[]) => Promise<void>;
 type P<T> = Promise<T>;
+type str = string;
 
 export interface LoggerABC {
     log: (level?: LogLevelType, ...message: string[]) => Promise<void>,
@@ -156,6 +157,72 @@ export class FileLogger extends ConsoleLogger implements LoggerABC {
         `${hex_id}  ${level[1].padEnd(9)}${TAB}${
             now.toISOString()
         }${TAB}${message.join(' ')}\n`;
+
+        await this._write(level, formatted);
+    }
+}
+
+export namespace ListLoggerT {
+    export type Options = {
+        allow_ansi?: boolean
+    }
+}
+
+export class ListLogger extends ConsoleLogger implements LoggerABC {
+    protected targetList: str[];
+    protected options: ListLoggerT.Options;
+
+    constructor(targetList: str[], options: ListLoggerT.Options) {
+        super();
+
+        this.targetList = targetList;
+        this.options = options;
+    }
+
+    override async _write(level: LogLevelType, str: str): Promise<void> {
+        if (level[0] < this.logLevel[0])
+            return;
+
+        this.targetList.push(str);
+    }
+
+    override async log(level: LogLevelType = LogLevel.INFO, ...message: string[]): Promise<void> {
+        const color = this.colors[level[1]]!;
+
+        const now = new Date();
+
+        let hex_id = "0x" + Math.floor(now.getTime() / 10).toString(32);
+        hex_id += level[0].toString(32).padStart(2, "0");
+    
+        let formatted;
+
+        if (this.options.allow_ansi ?? false) {
+            formatted =
+            `${cyan.dim(hex_id)}${TAB}${color(level[1].padEnd(9))}${TAB}${
+                cyanBright(
+                    `${
+                    now.getHours().toString().padStart(2, "0")
+                    }:${
+                    now.getMinutes().toString().padStart(2, "0")
+                    }:${
+                    now.getSeconds().toString().padStart(2, "0")
+                    }.${now.getMilliseconds().toString().padEnd(3, "0")}`
+                )
+            }${TAB}|${TAB}${color(message.join(' '))}`;
+        } else {
+            formatted =
+            `${hex_id}${TAB}${level[1].padEnd(9)}${TAB}${
+                cyanBright(
+                    `${
+                    now.getHours().toString().padStart(2, "0")
+                    }:${
+                    now.getMinutes().toString().padStart(2, "0")
+                    }:${
+                    now.getSeconds().toString().padStart(2, "0")
+                    }.${now.getMilliseconds().toString().padEnd(3, "0")}`
+                )
+            }${TAB}|${TAB}${message.join(' ')}`;
+        }
 
         await this._write(level, formatted);
     }
