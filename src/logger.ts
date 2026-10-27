@@ -1,17 +1,12 @@
 import { LogLevel } from "./enums"
 import type { LogLevelType } from "./enums"
-import { color, yellow, red, green, cyan, cyanBright, dim, bgRedBright, bgRed } from 'console-log-colors';
+import { color, yellow, red, green, cyan, cyanBright, dim, bgRedBright, bgRed, greenBright } from 'console-log-colors';
 import { LTAB, TAB } from "./utils";
 
-import { writeFile } from "node:fs/promises";
-const isBun = typeof process !== "undefined" && process.versions?.bun;
+import { appendFile } from "node:fs/promises";
 
 async function write(destination: string, data: string) {
-    if (isBun) {
-        return await Bun.write(destination, data);
-    } else {
-        return await writeFile(destination, data);
-    }
+    return await appendFile(destination, data);
 }
 
 type PredefaultLog = (...message: string[]) => Promise<void>;
@@ -23,6 +18,7 @@ export interface LoggerABC {
     debug: PredefaultLog,
     info: PredefaultLog,
     success: PredefaultLog,
+    important: PredefaultLog,
     warning: PredefaultLog,
     error: PredefaultLog,
     critical: PredefaultLog
@@ -41,6 +37,7 @@ export class ConsoleLogger implements LoggerABC {
             [LogLevel.DEBUG[1]]: cyan.dim,
             [LogLevel.INFO[1]]: (_: string) => _,
             [LogLevel.SUCCESS[1]]: green,
+            [LogLevel.IMPORTANT[1]]: greenBright,
             [LogLevel.WARNING[1]]: yellow,
             [LogLevel.ERROR[1]]: red,
             [LogLevel.CRITICAL[1]]: bgRedBright
@@ -61,6 +58,7 @@ export class ConsoleLogger implements LoggerABC {
                 break;
             case LogLevel.INFO:
             case LogLevel.SUCCESS:
+            case LogLevel.IMPORTANT:
                 this.console.info(str);
                 break;
             case LogLevel.WARNING:
@@ -78,11 +76,11 @@ export class ConsoleLogger implements LoggerABC {
 
         const now = new Date();
 
-        let hex_id = "0x" + Math.floor(now.getTime() / 1000).toString(32);
-        hex_id += level[0].toString(32);
+        let hex_id = "0x" + Math.floor(now.getTime() / 10).toString(32);
+        hex_id += level[0].toString(32).padStart(2, "0");
     
         const formatted =
-        `${cyanBright(hex_id)}${TAB}${color(level[1].padEnd(8))}${LTAB}${
+        `${cyan.dim(hex_id)}${TAB}${color(level[1].padEnd(9))}${TAB}${
             cyanBright(
                 `${
                 now.getHours().toString().padStart(2, "0")
@@ -92,9 +90,9 @@ export class ConsoleLogger implements LoggerABC {
                 now.getSeconds().toString().padStart(2, "0")
                 }.${now.getMilliseconds().toString().padEnd(3, "0")}`
             )
-        }${LTAB}${color(message.join(' '))}`;
+        }${TAB}|${TAB}${color(message.join(' '))}`;
 
-        this._write(level, formatted);
+        await this._write(level, formatted);
     }
 
     async dev(...msg: string[]): P<void> {
@@ -111,6 +109,10 @@ export class ConsoleLogger implements LoggerABC {
 
     async success(...msg: string[]): P<void> {
         await this.log(LogLevel.SUCCESS, ...msg);
+    }
+
+    async important(...msg: string[]): P<void> {
+        await this.log(LogLevel.IMPORTANT, ...msg);
     }
 
     async warning(...msg: string[]): P<void> {
@@ -133,6 +135,8 @@ export class FileLogger extends ConsoleLogger implements LoggerABC {
         super();
 
         this.filename = filename;
+
+        this.logLevel = LogLevel.DEV;
     }
 
     override async _write(level: LogLevelType, str: string) {
@@ -145,21 +149,15 @@ export class FileLogger extends ConsoleLogger implements LoggerABC {
     override async log(level: LogLevelType = LogLevel.INFO, ...message: string[]): Promise<void> {
         const now = new Date();
 
-        let hex_id = "0x" + Math.floor(now.getTime() / 1000).toString(32);
-        hex_id += level[0].toString(32);
+        let hex_id = "0x" + Math.floor(now.getTime() / 10).toString(32);
+        hex_id += level[0].toString(32).padStart(2, "0");
     
         const formatted =
-        `${TAB}${level[1].padEnd(8)}${LTAB}${
-            `${
-            now.getHours().toString().padStart(2, "0")
-            }:${
-            now.getMinutes().toString().padStart(2, "0")
-            }:${
-            now.getSeconds().toString().padStart(2, "0")
-            }.${now.getMilliseconds().toString().padEnd(3, "0")}`
-        }${LTAB}${message.join(' ')}`;
+        `${hex_id}  ${level[1].padEnd(9)}${TAB}${
+            now.toISOString()
+        }${TAB}${message.join(' ')}\n`;
 
-        this._write(level, formatted);
+        await this._write(level, formatted);
     }
 }
 

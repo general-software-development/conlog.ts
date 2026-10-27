@@ -1,8 +1,18 @@
-import { ConsoleLogger } from "./src";
+import { ConsoleLogger, LogLevel, FileLogger, concat } from "./src";
 
-const logger = new ConsoleLogger();
+const flogger = new FileLogger("./latest.log");
+const clogger = new ConsoleLogger();
+clogger.logLevel = LogLevel.DEV;
+
+const logger = new concat(clogger, flogger);
+
+logger.logLevel = LogLevel.DEV;
 
 logger.dev("test 1");
+
+logger.debug("debug");
+
+logger.important('important');
 
 logger.critical('test 2');
 
